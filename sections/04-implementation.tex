@@ -17,6 +17,20 @@ El sistema se organiza como un ecosistema de tres repositorios con responsabilid
     \item \textbf{\texttt{path-search}} (Capa experimental -- grids): Aplicación de benchmark que evalúa los algoritmos en grids bidimensionales con obstáculos, terrenos variables y múltiples esquemas de movimiento.
 \end{enumerate}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{pypi-search-library.png}
+\caption{Librería \texttt{search-library} publicada en PyPI (v1.0.0). Disponible para instalación directa con \texttt{pip install search-library}.}
+\label{fig:pypi}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{github-search-library.png}
+\caption{Repositorio principal \texttt{search-library} en GitHub: código fuente, tests, CI/CD y documentación del framework de algoritmos de búsqueda.}
+\label{fig:github_core}
+\end{figure}
+
 La Figura~\ref{fig:system_arch} ilustra la relación entre las capas del sistema.
 
 \begin{figure}[H]
@@ -157,6 +171,13 @@ La clase \texttt{Grid} soporta inicialización desde matrices numéricas mediant
 
 El paquete \texttt{graph-city-pathfinding} modela una red vial real del sur de Perú como un grafo ponderado no dirigido, donde los nodos representan ciudades y los pesos de aristas corresponden a distancias aproximadas en kilómetros.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{github-graph-search.png}
+\caption{Repositorio \texttt{graph-search}: benchmark de algoritmos de búsqueda sobre la red vial del sur de Perú (10 ciudades, 13 aristas ponderadas).}
+\label{fig:github_graph}
+\end{figure}
+
 \subsubsection{Modelado del grafo}
 
 La red contiene 10 ciudades (Arequipa, Puno, Juliaca, Cusco, Tacna, Moquegua, Ilo, Nazca, Ayacucho, Abancay) conectadas por 13 aristas con pesos entre 45 km y 560 km. El grafo se diseñó deliberadamente con:
@@ -178,6 +199,13 @@ El módulo \texttt{comparison.py} ejecuta los cinco algoritmos sobre el mismo pr
 \subsection{Capa experimental: path-search}
 
 El paquete \texttt{grid-path-benchmark} evalúa los algoritmos sobre 8 escenarios de grids bidimensionales predefinidos, cubriendo un espectro representativo de configuraciones.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{github-path-search.png}
+\caption{Repositorio \texttt{path-search}: benchmark de algoritmos en grids 2D con 8 escenarios configurables (obstáculos, terrenos ponderados, bug trap, escalabilidad).}
+\label{fig:github_path}
+\end{figure}
 
 \subsubsection{Sistema de terrenos}
 
