@@ -119,8 +119,8 @@ donde $h^*(n)$ es el costo real óptimo desde $n$ hasta la meta más cercana.
 \subsubsection{Complejidad}
 
 \begin{itemize}
-    \item \textbf{Temporal:} $O(b^d)$ en el peor caso, donde $b$ es el factor de ramificación y $d$ la profundidad de la solución. Con buena heurística, se reduce significativamente.
-    \item \textbf{Espacial:} $O(b^d)$, ya que almacena todos los nodos generados.
+    \item \textbf{Temporal:} $O(b^d)$ en el peor caso, donde $b$ es el factor de ramificación y $d$ la profundidad de la solución. Con buena heurística, se reduce significativamente. Cuando $h(n) = h^*(n)$ (heurística perfecta), la complejidad se reduce a $O(d)$ \cite{fukunaga2017survey}.
+    \item \textbf{Espacial:} $O(b^d)$, ya que almacena todos los nodos generados. Esta es la principal limitación práctica de A* en espacios de búsqueda de gran escala.
 \end{itemize}
 
 El factor de ramificación efectivo $b^*$ permite evaluar la calidad de una heurística. Si A* genera $N$ nodos para encontrar una solución a profundidad $d$, entonces $b^*$ satisface:

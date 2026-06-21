@@ -48,11 +48,15 @@ Se identifican las siguientes líneas de desarrollo futuro:
     
     \item \textbf{Heurísticas avanzadas:} Implementar heurísticas basadas en landmarks (ALT algorithm) y pattern databases para mejorar la eficiencia en grafos de gran escala.
     
-    \item \textbf{Entornos dinámicos:} Extender la librería para soportar replanificación en tiempo real ante cambios en la topología o costos del grafo.
+    \item \textbf{Jump Point Search:} Harabor y Grastien \cite{harabor2011online} demuestran que JPS logra aceleraciones de un orden de magnitud sobre A* en grids uniformes mediante la eliminación de simetrías, representando el estado del arte para pathfinding en grids estáticos.
     
-    \item \textbf{Paralelización:} Explorar variantes paralelas de A* (HDA*, PRA*) para aprovechar arquitecturas multi-core.
+    \item \textbf{Any-Angle Pathfinding:} Nash et al. \cite{nash2010theta} evidencian que los caminos restringidos a la topología del grid son subóptimos respecto al espacio continuo (hasta 76\% más largos). Theta* aborda esta limitación permitiendo trayectorias en ángulo libre.
     
-    \item \textbf{Visualización:} Desarrollar herramientas de visualización interactiva que permitan observar la progresión del algoritmo paso a paso.
+    \item \textbf{Anytime Search:} Hansen y Zilberstein \cite{hansen2001anytime} formalizan Weighted A* ($f(n) = g(n) + \varepsilon \cdot h(n)$, $\varepsilon > 1$) como marco para búsqueda con restricciones de tiempo, aplicable a robótica y videojuegos en tiempo real.
+    
+    \item \textbf{Entornos dinámicos:} Extender la librería para soportar replanificación en tiempo real ante cambios en la topología o costos del grafo mediante D* Lite \cite{koenig2002d}.
+    
+    \item \textbf{Paralelización:} Explorar variantes paralelas de A* (HDA*, PRA*) para aprovechar arquitecturas multi-core \cite{fukunaga2017survey}.
     
     \item \textbf{Benchmarks estandarizados:} Evaluar contra los mapas de referencia del repositorio Moving AI Lab \cite{sturtevant2012benchmarks} para comparación directa con otras implementaciones.
 \end{enumerate}

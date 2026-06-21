@@ -136,9 +136,9 @@ Large 50$\times$50 (5\%) & 65 & 2375 & \textbf{97\%} \\
 
 Los resultados demuestran que la ventaja de A* se amplifica con:
 \begin{itemize}
-    \item \textbf{Mayor tamaño del espacio:} En el grid 50$\times$50, A* alcanza un 97\% de reducción (65 vs 2375 nodos).
+    \item \textbf{Mayor tamaño del espacio:} En el grid 50$\times$50, A* alcanza un 97\% de reducción (65 vs 2375 nodos). Chen \cite{chen2022improved} reporta una reducción similar del 57\% en la red vial de Nueva York (55,136 nodos).
     \item \textbf{Movimiento diagonal:} La heurística Octile en grids 8-direccionales produce un 85\% de reducción porque estima con mayor precisión el costo real.
-    \item \textbf{Ausencia de trampas:} En el Bug Trap, la reducción es solo del 19\% porque la formación cóncava engaña a la heurística, forzando exploración adicional.
+    \item \textbf{Ausencia de trampas:} En el Bug Trap, la reducción es solo del 19\% porque la formación cóncava engaña a la heurística, forzando exploración adicional. Wang et al. \cite{wang2022ebs} confirman este fenómeno en grids con alta densidad de obstáculos.
 \end{itemize}
 
 \subsection{Experimento 4: Impacto de la heurística en grids 8-direccionales}

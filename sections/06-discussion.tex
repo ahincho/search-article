@@ -5,7 +5,7 @@
 
 \subsection{Análisis de resultados}
 
-Los resultados experimentales validan las propiedades teóricas del algoritmo A* y demuestran la efectividad de la implementación en \texttt{search-library}. La reducción en el número de nodos explorados --- entre 12\% y 97\% respecto a Dijkstra --- confirma que la incorporación de información heurística guía eficientemente la búsqueda hacia la solución sin sacrificar optimalidad.
+Los resultados experimentales validan las propiedades teóricas del algoritmo A* y demuestran la efectividad de la implementación en \texttt{search-library}. La reducción en el número de nodos explorados --- entre 12\% y 97\% respecto a Dijkstra --- confirma que la incorporación de información heurística guía eficientemente la búsqueda hacia la solución sin sacrificar optimalidad. Estos resultados son consistentes con evaluaciones empíricas recientes en grids de mayor escala, donde Peralta et al. \cite{peralta2025efficient} reportan reducciones del 44.5\% en nodos expandidos por A* respecto a BFS en 6,000 mapas de $261 \times 261$ con densidades de obstáculos del 10\% al 30\%.
 
 \subsubsection{Eficiencia de la heurística}
 
@@ -42,11 +42,11 @@ En la industria de videojuegos, A* es el estándar para pathfinding de NPCs \cit
 
 \subsubsection{Robótica}
 
-En robótica móvil, A* se aplica para la planificación de trayectorias en mapas de ocupación (occupancy grids) \cite{lavalle2006planning}. La clase \texttt{Grid} con costos variables puede representar terrenos con diferente dificultad de traversal.
+En robótica móvil, A* se aplica para la planificación de trayectorias en mapas de ocupación (occupancy grids) \cite{lavalle2006planning}. Kabir et al. \cite{kabir2024enhanced} demuestran que A* con una función de costo adaptada a las restricciones cinemáticas del robot reduce el tiempo de planificación un 51.96\% respecto a Dijkstra en simulaciones ROS con Turtlebot3. La clase \texttt{Grid} con costos variables puede representar terrenos con diferente dificultad de traversal, mapeando directamente a estos entornos de navegación robótica.
 
 \subsubsection{Navegación GPS}
 
-Los sistemas de navegación modernos emplean variantes de A* (como ALT: A* with Landmarks and Triangle Inequality) para calcular rutas en grafos de millones de nodos \cite{bast2016route}. La arquitectura extensible de \texttt{search-library} permite incorporar estas optimizaciones mediante nuevas heurísticas.
+Los sistemas de navegación modernos emplean variantes de A* (como ALT: A* with Landmarks and Triangle Inequality) para calcular rutas en grafos de millones de nodos \cite{bast2016route}. Zeng y Church \cite{zeng2009finding} demuestran empíricamente que A* con heurística Euclidiana supera a todas las variantes evaluadas de Dijkstra en redes viales reales, estableciéndolo como el algoritmo preferido para consultas de camino más corto punto a punto en sistemas GIS. La arquitectura extensible de \texttt{search-library} permite incorporar estas optimizaciones mediante nuevas heurísticas.
 
 \subsubsection{Grafos de conocimiento}
 
