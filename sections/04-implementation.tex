@@ -1,276 +1,261 @@
 % ============================================================================
-% Sección 4: Implementación
+% Sección 4: Implementación del Sistema
 % ============================================================================
-\section{Implementación}
+\section{Implementación del Sistema}
 
-\subsection{Estructura del proyecto}
+Esta sección describe la arquitectura, diseño e implementación del framework de búsqueda desarrollado. El sistema se compone de tres capas independientes que cooperan para proveer una infraestructura de experimentación reproducible y extensible.
 
-La librería \texttt{search-library} se organiza siguiendo las convenciones estándar de paquetes Python con el layout \texttt{src/}:
+\subsection{Arquitectura general}
 
-\begin{lstlisting}[language={}, caption={Estructura del proyecto}, label={lst:structure}]
-search-library/
-  src/search_library/
-    algorithms/
-      astar.py
-    core/
-      nodes.py
-      problem.py
-      result.py
-      state.py
-    graph/
-      edges.py
-      graph.py
-    grid/
-      grid.py
-      grid_search.py
-    heuristics/
-      base.py
-      euclidean.py
-      manhattan.py
-    exceptions/
-      exceptions.py
-    utils/
-      helpers.py
-\end{lstlisting}
+El sistema se organiza como un ecosistema de tres repositorios con responsabilidades claramente separadas:
 
-\subsection{Módulo Core: Abstracciones fundamentales}
+\begin{enumerate}
+    \item \textbf{\texttt{search-library}} (Core): Librería publicada en PyPI que implementa los algoritmos de búsqueda como componentes genéricos reutilizables. No posee dependencias externas.
 
-\subsubsection{Interfaz SearchProblem}
+    \item \textbf{\texttt{graph-search}} (Capa experimental -- grafos): Aplicación de benchmark que modela redes de ciudades reales como grafos ponderados y ejecuta comparaciones algorítmicas.
 
-La clase abstracta \texttt{SearchProblem[T]} define el contrato que todo problema de búsqueda debe implementar, parametrizada por el tipo genérico $T$ del estado:
+    \item \textbf{\texttt{path-search}} (Capa experimental -- grids): Aplicación de benchmark que evalúa los algoritmos en grids bidimensionales con obstáculos, terrenos variables y múltiples esquemas de movimiento.
+\end{enumerate}
 
-\begin{lstlisting}[caption={Interfaz abstracta del problema de búsqueda}, label={lst:problem}]
+La Figura~\ref{fig:system_arch} ilustra la relación entre las capas del sistema.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    layer/.style={rectangle, draw=blue!60, fill=blue!5, thick, minimum width=6cm, minimum height=1cm, font=\small, text centered},
+    dep/.style={-{Stealth[length=3mm]}, thick, dashed},
+    node distance=1.2cm
+]
+    \node[layer] (article) {search-article (Documentación)};
+    \node[layer, below=of article, fill=green!5, draw=green!60] (graph) {graph-search (Benchmark Grafos)};
+    \node[layer, right=0.3cm of graph, fill=green!5, draw=green!60, minimum width=5.5cm] (path) {path-search (Benchmark Grids)};
+    \node[layer, below=1.5cm of graph, fill=orange!5, draw=orange!60, minimum width=12cm] (core) {search-library (Core -- PyPI)};
+
+    \draw[dep] (graph.south) -- ++(0,-0.5) -| (core.north west);
+    \draw[dep] (path.south) -- ++(0,-0.5) -| (core.north east);
+    \draw[dep] (article.south) -- ++(0,-0.3) -| (graph.north);
+    \draw[dep] (article.south) -- ++(0,-0.3) -| (path.north);
+\end{tikzpicture}
+\caption{Arquitectura del sistema: tres capas con dependencia unidireccional hacia el core.}
+\label{fig:system_arch}
+\end{figure}
+
+Este diseño garantiza que la librería core permanezca independiente de las capas experimentales, facilitando su reutilización en otros dominios sin arrastrar dependencias de benchmark.
+
+\subsection{Diseño de la librería core (search-library)}
+
+La librería \texttt{search-library} (v1.0.0, publicada en PyPI) constituye el núcleo del sistema. Implementa cinco algoritmos de búsqueda sobre una abstracción genérica parametrizada por tipo, sin dependencias externas de runtime.
+
+\subsubsection{Abstracción SearchProblem}
+
+La interfaz \texttt{SearchProblem[T]} define el contrato que todo problema de búsqueda debe satisfacer. El parámetro genérico \texttt{T} representa el tipo del estado, permitiendo que el mismo algoritmo opere sobre grafos de ciudades (\texttt{T = str}), posiciones en grids (\texttt{T = tuple[int, int]}), o cualquier tipo hashable definido por el usuario:
+
+\begin{lstlisting}[caption={Interfaz abstracta SearchProblem[T]}, label={lst:searchproblem}]
 class SearchProblem(ABC, Generic[T]):
     @abstractmethod
     def initial_state(self) -> T: ...
-
     @abstractmethod
     def is_goal(self, state: T) -> bool: ...
-
     @abstractmethod
-    def successors(self, state: T) 
+    def successors(self, state: T)
         -> list[tuple[T, float]]: ...
-
     def heuristic(self, state: T) -> float:
         return 0.0  # Dijkstra por defecto
 \end{lstlisting}
 
-Este diseño permite que el algoritmo A* opere sobre cualquier dominio sin conocer la representación interna del estado.
+El método \texttt{heuristic} provee un valor por defecto de cero, lo que convierte a cualquier algoritmo informado en su variante no informada equivalente (A* con $h=0$ degenera en Dijkstra).
 
-\subsubsection{Nodo de búsqueda}
+\subsubsection{Jerarquía SearchAlgorithm}
 
-El \texttt{Node[T]} encapsula la información necesaria para el algoritmo, incluyendo la reconstrucción del camino:
+Todos los algoritmos heredan de la clase abstracta \texttt{SearchAlgorithm[T]}, que define una interfaz uniforme con parámetros de control:
 
-\begin{lstlisting}[caption={Estructura del nodo de búsqueda}, label={lst:node}]
-@dataclass(order=False)
-class Node(Generic[T]):
-    state: T
-    parent: Node[T] | None = None
-    g_cost: float = 0.0
-    h_cost: float = 0.0
-    f_cost: float = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.f_cost = self.g_cost + self.h_cost
-
-    def reconstruct_path(self) -> list[T]:
-        path: list[T] = []
-        current: Node[T] | None = self
-        while current is not None:
-            path.append(current.state)
-            current = current.parent
-        path.reverse()
-        return path
-\end{lstlisting}
-
-\subsubsection{Resultado de búsqueda}
-
-El resultado es un \texttt{dataclass} inmutable (\texttt{frozen=True}) que contiene la solución completa:
-
-\begin{lstlisting}[caption={Contenedor de resultados}, label={lst:result}]
-@dataclass(frozen=True)
-class SearchResult(Generic[T]):
-    path: list[T] = field(default_factory=list)
-    total_cost: float = 0.0
-    nodes_explored: int = 0
-    success: bool = False
-    explored_states: frozenset[T] = field(
-        default_factory=frozenset
-    )
-\end{lstlisting}
-
-\subsection{Algoritmo A*: Implementación central}
-
-La implementación de A* emplea un heap binario (\texttt{heapq}) como cola de prioridad y un conjunto cerrado para evitar reexpansiones:
-
-\begin{lstlisting}[caption={Implementación del algoritmo A*}, label={lst:astar}]
-class AStarSearch(Generic[T]):
+\begin{lstlisting}[caption={Base abstracta para algoritmos de búsqueda}, label={lst:searchalg}]
+class SearchAlgorithm(ABC, Generic[T]):
     def __init__(self, problem: SearchProblem[T]):
         self._problem = problem
 
-    def search(self) -> SearchResult[T]:
-        initial = self._problem.initial_state()
-        h_cost = self._problem.heuristic(initial)
-        start_node = Node(
-            state=initial, g_cost=0.0, h_cost=h_cost
-        )
-        # (f_cost, counter, node) - counter rompe
-        # empates con orden FIFO
-        counter = 0
-        open_list = []
-        heapq.heappush(
-            open_list, 
-            (start_node.f_cost, counter, start_node)
-        )
-        g_scores = {initial: 0.0}
-        closed_set: set[T] = set()
-
-        while open_list:
-            _, _, current = heapq.heappop(open_list)
-            if current.state in closed_set:
-                continue
-            closed_set.add(current.state)
-            if self._problem.is_goal(current.state):
-                path = current.reconstruct_path()
-                return SearchResult(
-                    path=path,
-                    total_cost=current.g_cost,
-                    nodes_explored=len(closed_set),
-                    success=True
-                )
-            for succ, cost in self._problem.successors(
-                current.state
-            ):
-                if succ in closed_set:
-                    continue
-                tent_g = current.g_cost + cost
-                if tent_g < g_scores.get(
-                    succ, float("inf")
-                ):
-                    g_scores[succ] = tent_g
-                    h = self._problem.heuristic(succ)
-                    node = Node(
-                        state=succ, parent=current,
-                        g_cost=tent_g, h_cost=h
-                    )
-                    counter += 1
-                    heapq.heappush(
-                        open_list,
-                        (node.f_cost, counter, node)
-                    )
-        return SearchResult(success=False)
+    @abstractmethod
+    def search(
+        self, *,
+        max_iterations: int | None = None,
+        strict: bool = False,
+        track_explored: bool = False,
+    ) -> SearchResult[T]: ...
 \end{lstlisting}
 
-\subsection{Módulo Graph}
+Los parámetros \texttt{max\_iterations}, \texttt{strict} y \texttt{track\_explored} permiten controlar el comportamiento sin modificar la lógica algorítmica. En modo \texttt{strict}, las fallas generan excepciones tipadas (\texttt{NoSolutionFoundError}, \texttt{SearchTimeoutError}).
 
-El módulo de grafos proporciona una estructura de datos para grafos ponderados, tanto dirigidos como no dirigidos:
+\subsubsection{Algoritmos implementados}
 
-\begin{lstlisting}[caption={Grafo ponderado con adaptador a SearchProblem}, label={lst:graph}]
-class Graph(Generic[T]):
-    def __init__(self, directed: bool = True):
-        self.directed = directed
-        self._adjacency: dict[T, list[tuple[T, float]]] = {}
+La librería implementa cinco algoritmos con las siguientes características:
 
-    def add_edge(self, source, target, weight=1.0):
-        self._adjacency[source].append((target, weight))
-        if not self.directed:
-            self._adjacency[target].append(
-                (source, weight)
-            )
+\begin{itemize}
+    \item \textbf{A* Search (\texttt{AStarSearch}):} Búsqueda informada con cola de prioridad ordenada por $f(n) = g(n) + h(n)$. Emplea \texttt{heapq} con contador para ruptura de empates FIFO y un diccionario \texttt{g\_scores} para detección de caminos mejores.
 
-    def to_search_problem(self, start, goal, heuristic):
-        return GraphSearchProblem(
-            self, start, goal, heuristic
-        )
+    \item \textbf{Dijkstra (\texttt{Dijkstra}):} Caso particular de A* con $h(n) = 0$. Implementación independiente con cola de prioridad ordenada exclusivamente por $g(n)$.
+
+    \item \textbf{BFS (\texttt{BFS}):} Búsqueda en amplitud con cola FIFO (\texttt{deque}). Óptima solo en grafos con costos uniformes.
+
+    \item \textbf{DFS (\texttt{DFS}):} Búsqueda en profundidad con pila (LIFO). Sin garantía de optimalidad; retorna el primer camino encontrado.
+
+    \item \textbf{Bidirectional Search (\texttt{BidirectionalSearch}):} BFS simultáneo desde el origen y el destino. Requiere un \texttt{reverse\_problem} explícito que defina sucesores en dirección inversa. Reduce el espacio de búsqueda de $O(b^d)$ a $O(b^{d/2})$.
+\end{itemize}
+
+Cada algoritmo expone además una función de conveniencia a nivel de módulo (\texttt{astar\_search}, \texttt{dijkstra\_search}, etc.) que instancia y ejecuta el algoritmo en una sola llamada.
+
+\subsubsection{Estructura SearchResult}
+
+El resultado de toda búsqueda es un \texttt{dataclass} inmutable que encapsula la solución completa junto con métricas de exploración:
+
+\begin{lstlisting}[caption={Contenedor de resultados inmutable}, label={lst:searchresult}]
+@dataclass(frozen=True)
+class SearchResult(Generic[T]):
+    path: list[T]
+    total_cost: float
+    nodes_explored: int
+    success: bool
+    explored_states: frozenset[T] | None
+    path_length: int  # len(path)
+    steps: int        # len(path) - 1
 \end{lstlisting}
 
-\subsection{Módulo Grid}
+La inmutabilidad (\texttt{frozen=True}) garantiza que los resultados no sean alterados accidentalmente durante el análisis comparativo.
 
-El módulo de grids implementa un tablero 2D con soporte para obstáculos, costos variables y movimiento configurable:
+\subsubsection{Framework de heurísticas}
 
-\begin{lstlisting}[caption={Grid 2D con obstáculos y costos variables}, label={lst:grid}]
-class Grid:
-    def __init__(self, rows, cols, *,
-                 allow_diagonal=False,
-                 default_cost=1.0):
-        self.rows = rows
-        self.cols = cols
-        self.allow_diagonal = allow_diagonal
-        self._obstacles: set[Position] = set()
-        self._costs: dict[Position, float] = {}
+Las funciones heurísticas se implementan mediante el patrón Strategy a través de la interfaz \texttt{Heuristic[T]}:
 
-    @classmethod
-    def from_matrix(cls, matrix, *,
-                    obstacle_value=1,
-                    allow_diagonal=False):
-        """Crea grid desde matriz 2D."""
-        ...
-
-    def get_neighbors(self, position):
-        """Retorna vecinos transitables y costos."""
-        directions = (EIGHT_DIRECTIONS 
-            if self.allow_diagonal 
-            else FOUR_DIRECTIONS)
-        ...
-\end{lstlisting}
-
-\subsection{Módulo Heuristics}
-
-Las heurísticas siguen el patrón Strategy, permitiendo su intercambio transparente:
-
-\begin{lstlisting}[caption={Heurísticas: Manhattan y Euclidiana}, label={lst:heuristics}]
+\begin{lstlisting}[caption={Patrón Strategy para heurísticas intercambiables}, label={lst:heuristic_iface}]
 class Heuristic(ABC, Generic[T]):
     @abstractmethod
     def estimate(self, state: T, goal: T) -> float:
         """Nunca sobreestima el costo real."""
 
-class ManhattanHeuristic(Heuristic[tuple[int,int]]):
-    def estimate(self, state, goal) -> float:
-        return float(
-            abs(state[0]-goal[0]) + 
-            abs(state[1]-goal[1])
-        )
-
-class EuclideanHeuristic(Heuristic[tuple[int,int]]):
-    def estimate(self, state, goal) -> float:
-        dx = state[0] - goal[0]
-        dy = state[1] - goal[1]
-        return math.sqrt(dx*dx + dy*dy)
+    def __call__(self, state: T, goal: T) -> float:
+        return self.estimate(state, goal)
 \end{lstlisting}
 
-\subsection{Diagrama de flujo del algoritmo}
+La librería core provee dos heurísticas para grids:
+\begin{itemize}
+    \item \textbf{ManhattanHeuristic:} $h(n) = |x_n - x_g| + |y_n - y_g|$. Admisible para movimiento cardinal con costo uniforme.
+    \item \textbf{EuclideanHeuristic:} $h(n) = \sqrt{(x_n - x_g)^2 + (y_n - y_g)^2}$. Admisible universalmente, pero menos ajustada que heurísticas especializadas.
+\end{itemize}
 
-La Figura~\ref{fig:flowchart} ilustra el flujo de ejecución del algoritmo A* implementado.
+\subsubsection{Representaciones de dominio}
 
-\begin{figure}[H]
+La librería incluye dos estructuras de datos concretas con sus respectivos adaptadores al \texttt{SearchProblem}:
+
+\begin{itemize}
+    \item \textbf{Graph[T]:} Grafo ponderado dirigido o no dirigido con lista de adyacencia. El adaptador \texttt{GraphSearchProblem} traduce la interfaz del grafo a \texttt{SearchProblem[T]}.
+
+    \item \textbf{Grid:} Tablero 2D con soporte para obstáculos, costos variables por celda, y movimiento configurable (4 u 8 direcciones). El adaptador \texttt{GridSearchProblem} acepta una heurística intercambiable.
+\end{itemize}
+
+La clase \texttt{Grid} soporta inicialización desde matrices numéricas mediante \texttt{Grid.from\_matrix()}, facilitando la definición declarativa de escenarios experimentales.
+
+\subsection{Capa experimental: graph-search}
+
+El paquete \texttt{graph-city-pathfinding} modela una red vial real del sur de Perú como un grafo ponderado no dirigido, donde los nodos representan ciudades y los pesos de aristas corresponden a distancias aproximadas en kilómetros.
+
+\subsubsection{Modelado del grafo}
+
+La red contiene 10 ciudades (Arequipa, Puno, Juliaca, Cusco, Tacna, Moquegua, Ilo, Nazca, Ayacucho, Abancay) conectadas por 13 aristas con pesos entre 45 km y 560 km. El grafo se diseñó deliberadamente con:
+
+\begin{itemize}
+    \item Múltiples rutas entre origen y destino (para evidenciar diferencias algorítmicas).
+    \item Una ruta ``trampa'' con menor número de saltos pero mayor costo total (Arequipa $\rightarrow$ Nazca $\rightarrow$ Ayacucho $\rightarrow$ Abancay $\rightarrow$ Cusco: 1600 km), que demuestra la suboptimalidad de BFS en grafos ponderados.
+    \item Coordenadas 2D por ciudad para el cálculo de la heurística Euclidiana.
+\end{itemize}
+
+\subsubsection{Heurística personalizada}
+
+El módulo implementa \texttt{CityEuclideanHeuristic}, que satisface \texttt{Heuristic[str]} y computa la distancia en línea recta entre ciudades basándose en coordenadas precalculadas. Su admisibilidad se fundamenta en que la distancia Euclidiana es siempre menor o igual a la distancia real por carretera.
+
+\subsubsection{Motor de comparación}
+
+El módulo \texttt{comparison.py} ejecuta los cinco algoritmos sobre el mismo problema, recopilando métricas de costo, nodos explorados, tiempo de ejecución, y optimalidad (verificada contra el baseline de Dijkstra).
+
+\subsection{Capa experimental: path-search}
+
+El paquete \texttt{grid-path-benchmark} evalúa los algoritmos sobre 8 escenarios de grids bidimensionales predefinidos, cubriendo un espectro representativo de configuraciones.
+
+\subsubsection{Sistema de terrenos}
+
+Se define un sistema de terrenos con costos diferenciados que permite modelar entornos realistas:
+
+\begin{itemize}
+    \item \texttt{FREE} (costo 1.0): terreno transitable normal.
+    \item \texttt{DIFFICULT} (costo 2.0): terreno difícil (arena, barro).
+    \item \texttt{WATER} (costo 5.0): terreno acuático (alto costo de travesía).
+    \item \texttt{BLOCKED} ($\infty$): obstáculo infranqueable.
+\end{itemize}
+
+\subsubsection{Heurísticas extendidas}
+
+Además de las heurísticas provistas por el core, esta capa implementa:
+
+\begin{itemize}
+    \item \textbf{ChebyshevHeuristic:} $h(n) = \max(|dx|, |dy|)$. Admisible para grids 8-direccionales con costo uniforme de movimiento diagonal.
+    \item \textbf{OctileHeuristic:} $h(n) = \max(dx, dy) + (\sqrt{2} - 1) \cdot \min(dx, dy)$. La heurística más ajustada para grids 8-direccionales donde el movimiento diagonal tiene costo $\sqrt{2}$.
+\end{itemize}
+
+La selección automática de heurística se realiza según el escenario: Manhattan para 4 direcciones, Octile para 8 direcciones, y Euclidiana para grids con costos variables.
+
+\subsubsection{Escenarios de benchmark}
+
+Se definen 8 escenarios deterministas con semillas explícitas (\texttt{seed}) que garantizan reproducibilidad total:
+
+\begin{table}[H]
 \centering
-\begin{tikzpicture}[
-    node distance=1cm,
-    startstop/.style={rectangle, rounded corners, draw=black, fill=red!10, text width=2.5cm, text centered, minimum height=0.7cm, font=\scriptsize},
-    process/.style={rectangle, draw=black, fill=blue!10, text width=3cm, text centered, minimum height=0.7cm, font=\scriptsize},
-    decision/.style={diamond, draw=black, fill=green!10, text width=1.8cm, text centered, minimum height=0.5cm, aspect=2, font=\scriptsize},
-    arrow/.style={-{Stealth[length=2mm]}, thick}
-]
-    \node[startstop] (start) {Inicio};
-    \node[process, below=of start] (init) {Inicializar open con $s_0$};
-    \node[decision, below=of init] (empty) {open vacío?};
-    \node[startstop, right=2.5cm of empty] (fail) {Fallo};
-    \node[process, below=of empty] (pop) {Extraer $n$ con menor $f(n)$};
-    \node[decision, below=of pop] (goal) {$n \in G$?};
-    \node[startstop, right=2.5cm of goal] (success) {Retornar camino};
-    \node[process, below=of goal] (expand) {Expandir sucesores};
-    \node[process, below=of expand] (update) {Actualizar $g$, $f$ en open};
-    
-    \draw[arrow] (start) -- (init);
-    \draw[arrow] (init) -- (empty);
-    \draw[arrow] (empty) -- node[above] {Sí} (fail);
-    \draw[arrow] (empty) -- node[right] {No} (pop);
-    \draw[arrow] (pop) -- (goal);
-    \draw[arrow] (goal) -- node[above] {Sí} (success);
-    \draw[arrow] (goal) -- node[right] {No} (expand);
-    \draw[arrow] (expand) -- (update);
-    \draw[arrow] (update.west) -- ++(-1.5,0) |- (empty.west);
-\end{tikzpicture}
-\caption{Diagrama de flujo del algoritmo A*}
-\label{fig:flowchart}
-\end{figure}
+\caption{Escenarios de benchmark en grids}
+\label{tab:scenarios}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}clcc@{}}
+\toprule
+\textbf{\#} & \textbf{Escenario} & \textbf{Grid} & \textbf{Movimiento} \\
+\midrule
+1 & 4-Dir básico (10\% obst.) & $20 \times 20$ & Cardinal \\
+2 & 8-Dir básico (10\% obst.) & $20 \times 20$ & Diagonal \\
+3 & Obstáculos densos (30\%) & $20 \times 20$ & Cardinal \\
+4 & Terreno ponderado & $20 \times 20$ & Diagonal \\
+5 & Bug Trap (trampa concava) & $20 \times 20$ & Cardinal \\
+6 & Grid grande y disperso & $50 \times 50$ & Diagonal \\
+7 & Sin camino posible & $10 \times 10$ & Cardinal \\
+8 & Inicio = Meta (trivial) & $10 \times 10$ & Cardinal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los escenarios 5 y 7 representan casos extremos: el Bug Trap evalúa el comportamiento ante heurísticas engañosas (formaciones cóncavas que atrapan a algoritmos greedy), mientras que el escenario sin camino verifica la detección correcta de fallas.
+
+\subsubsection{Generación reproducible de grids}
+
+Los grids se generan mediante funciones deterministas que utilizan \texttt{random.Random(seed)} para la colocación de obstáculos y terrenos. Las posiciones de inicio y meta nunca se bloquean. Para grids ponderados, la distribución de terrenos sigue: 60\% libre, 20\% difícil, 10\% agua, 10\% bloqueado.
+
+\subsection{Integración entre capas}
+
+Ambas capas experimentales dependen exclusivamente de \texttt{search-library} (v$\geq$1.0.0) como dependencia de runtime. La integración se materializa en tres puntos:
+
+\begin{enumerate}
+    \item \textbf{Reutilización del \texttt{SearchProblem}:} Ambos benchmarks adaptan sus dominios (grafos de ciudades, grids con terrenos) a la interfaz \texttt{SearchProblem[T]} provista por el core, permitiendo que los mismos algoritmos operen sobre ambos dominios sin modificación.
+
+    \item \textbf{Consistencia de métricas:} El \texttt{SearchResult} estandarizado asegura que las métricas recopiladas (nodos explorados, costo total, éxito) sean directamente comparables entre algoritmos y entre dominios.
+
+    \item \textbf{Extensión sin modificación:} Las heurísticas adicionales (\texttt{CityEuclidean}, \texttt{Chebyshev}, \texttt{Octile}) extienden la interfaz \texttt{Heuristic[T]} del core sin requerir cambios en la librería base, validando la extensibilidad del diseño.
+\end{enumerate}
+
+\subsection{Propiedades garantizadas por el sistema}
+
+La arquitectura del sistema garantiza formalmente las siguientes propiedades:
+
+\begin{enumerate}
+    \item \textbf{Optimalidad de A*:} Con cualquier heurística que satisfaga la interfaz \texttt{Heuristic[T]} y sea admisible ($h(n) \leq h^*(n)$), \texttt{AStarSearch} encuentra el camino de costo mínimo. Esto se verifica experimentalmente comparando contra el baseline de Dijkstra.
+
+    \item \textbf{Suboptimalidad de BFS en grafos ponderados:} BFS minimiza el número de aristas (hop count), no el costo total. Los experimentos en \texttt{graph-search} demuestran rutas con mayor costo cuando los pesos son heterogéneos.
+
+    \item \textbf{Equivalencia A* = Dijkstra cuando $h(n) = 0$:} El diseño de \texttt{SearchProblem.heuristic()} con retorno por defecto de 0.0 formaliza esta equivalencia. Los resultados experimentales confirman idénticos costos y caminos.
+
+    \item \textbf{Reproducibilidad experimental:} Todas las generaciones de grids y grafos son deterministas. Ejecutar los benchmarks en cualquier ambiente produce los mismos resultados numéricos.
+
+    \item \textbf{Consistencia de métricas:} El uso de un único \texttt{SearchResult} como contenedor de salida para todos los algoritmos garantiza que las comparaciones se realicen sobre métricas homogéneas (nodos explorados, costo, longitud de camino).
+\end{enumerate}
